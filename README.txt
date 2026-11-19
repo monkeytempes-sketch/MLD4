@@ -8,7 +8,11 @@ Aplikasi dikembangkan menggunakan Python dan Flask. Sistem dapat dijalankan seca
 
 Aplikasi telah di-deploy menggunakan Vercel dan dapat diakses melalui tautan berikut:
 
+<<<<<<< Updated upstream
 https://mld-4.vercel.app/
+=======
+**https://mld-4.vercel.app/**
+>>>>>>> Stashed changes
 
 Pengguna dapat membuka aplikasi melalui browser untuk mencoba fitur identifikasi penulis tulisan tangan tanpa perlu menjalankan server secara lokal.
 
@@ -283,4 +287,8 @@ MLD4/
 
 **Platform:** Python, Flask, Supabase, dan Vercel
 
+<<<<<<< Updated upstream
 **Demo:** https://mld-4.vercel.app/
+=======
+**Demo:** https://mld-4.vercel.app/
+>>>>>>> Stashed changes

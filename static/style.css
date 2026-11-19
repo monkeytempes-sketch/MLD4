@@ -61,7 +61,7 @@ h3 { font-size: 1.15rem; margin-bottom: 8px; }
   border-radius: 6px;
   background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--track) 31px 32px);
 }
-.stage.drag { border-color: var(--accent); }
+.stage.drag { border-color: var(--accent); border-style: solid; }
 .stage img, .stage video { max-width: 100%; max-height: 300px; object-fit: contain; background: #fff; border: 1px solid var(--rule); }
 .empty { margin: 0; padding: 4px 8px; background: var(--surface); color: var(--muted); text-align: center; }
 

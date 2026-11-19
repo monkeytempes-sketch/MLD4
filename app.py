@@ -4,9 +4,11 @@ import io
 import json
 import os
 import time
+import logging
 
 import joblib
 import numpy as np
+
 from flask import Flask, jsonify, request, send_from_directory
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -26,21 +28,31 @@ app = Flask(
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 200_000_000
 
+logging.basicConfig(level=logging.INFO)
+
 try:
     svm = joblib.load(os.path.join(MODEL_DIR, 'svm.joblib'))
     rf = joblib.load(os.path.join(MODEL_DIR, 'rf.joblib'))
     classes = joblib.load(os.path.join(MODEL_DIR, 'classes.joblib'))
 
-    with open(
-        os.path.join(MODEL_DIR, 'info.json'),
-        encoding='utf-8'
-    ) as f:
+    with open(os.path.join(MODEL_DIR, 'info.json'), encoding='utf-8') as f:
         info = json.load(f)
 
 except Exception as e:
-    raise RuntimeError(
-        f'Gagal memuat model dari folder model: {e}'
-    ) from e
+    raise RuntimeError(f'Gagal memuat model: {e}') from e
+
+SVM_FEATURES = svm.n_features_in_
+RF_FEATURES = rf.n_features_in_
+
+app.logger.info('SVM features: %s', SVM_FEATURES)
+app.logger.info('RF features: %s', RF_FEATURES)
+
+
+def error(message, status=400):
+    return jsonify({
+        'ok': False,
+        'pesan': message
+    }), status
 
 
 def ranked(scores):
@@ -48,7 +60,7 @@ def ranked(scores):
 
     return [
         {
-            'kode': classes[i],
+            'kode': str(classes[i]),
             'nilai': float(scores[i]),
             'contoh': f'/contoh/{classes[i]}.png'
         }
@@ -70,7 +82,7 @@ def predict_svm(x):
 
     top = [
         {
-            'kode': classes[i],
+            'kode': str(classes[i]),
             'nilai': float(share[i]),
             'contoh': f'/contoh/{classes[i]}.png'
         }
@@ -82,17 +94,9 @@ def predict_svm(x):
 
 def predict_rf(x):
     t0 = time.perf_counter()
-
     p = rf.predict_proba(x)[0]
 
     return ranked(p), (time.perf_counter() - t0) * 1000
-
-
-def error(message, status=400):
-    return jsonify({
-        'ok': False,
-        'pesan': message
-    }), status
 
 
 @app.get('/')
@@ -128,12 +132,14 @@ def identifikasi():
     try:
         raw = upload.read()
 
+        if not raw:
+            return error('File gambar kosong.')
+
         img = ImageOps.exif_transpose(
             Image.open(io.BytesIO(raw))
         )
 
         img.load()
-
         gray = np.asarray(img.convert('L'))
 
     except (
@@ -148,11 +154,36 @@ def identifikasi():
 
     t0 = time.perf_counter()
 
-    x = glcm_features(
-        prepare(gray)
-    ).reshape(1, -1)
+    processed = prepare(gray)
+    features = np.asarray(
+        glcm_features(processed),
+        dtype=np.float64
+    )
+
+    x = features.reshape(1, -1)
+    feature_count = x.shape[1]
 
     t_glcm = (time.perf_counter() - t0) * 1000
+
+    app.logger.info('GLCM features: %s', feature_count)
+    app.logger.info('SVM expected: %s', SVM_FEATURES)
+    app.logger.info('RF expected: %s', RF_FEATURES)
+
+    if feature_count != SVM_FEATURES:
+        return error(
+            f'Fitur GLCM menghasilkan {feature_count} fitur, '
+            f'SVM membutuhkan {SVM_FEATURES} fitur. '
+            'Periksa konfigurasi training dan ekstraksi GLCM.',
+            422
+        )
+
+    if feature_count != RF_FEATURES:
+        return error(
+            f'Fitur GLCM menghasilkan {feature_count} fitur, '
+            f'Random Forest membutuhkan {RF_FEATURES} fitur. '
+            'Periksa konfigurasi training dan ekstraksi GLCM.',
+            422
+        )
 
     svm_top, t_svm = predict_svm(x)
     rf_top, t_rf = predict_rf(x)
@@ -161,9 +192,7 @@ def identifikasi():
     best_rf = rf_top[0]['kode']
 
     if best_svm == best_rf:
-        ringkasan = (
-            f'Kedua model sepakat: penulis {best_svm}.'
-        )
+        ringkasan = f'Kedua model sepakat: penulis {best_svm}.'
     else:
         ringkasan = (
             f'Model berbeda pendapat: SVM memilih {best_svm}, '
@@ -208,6 +237,7 @@ def identifikasi():
         'ok': True,
         'ringkasan': ringkasan,
         'peringatan': peringatan,
+        'jumlah_fitur': feature_count,
         'waktu_glcm_ms': t_glcm,
         'svm': {
             'top': svm_top,
@@ -236,34 +266,20 @@ def unexpected(e):
             e.code
         )
 
-    app.logger.exception(e)
+    app.logger.exception('Server error: %s', e)
 
     return error(
-        'Terjadi kesalahan di server. Coba gambar lain.',
+        'Terjadi kesalahan di server. Periksa Runtime Logs.',
         500
     )
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-
-    ap.add_argument(
-        '--host',
-        default='127.0.0.1'
-    )
-
-    ap.add_argument(
-        '--port',
-        type=int,
-        default=5000
-    )
+    ap.add_argument('--host', default='127.0.0.1')
+    ap.add_argument('--port', type=int, default=5000)
 
     a = ap.parse_args()
-
-    print(
-        f'Buka http://{"127.0.0.1" if a.host == "0.0.0.0" else a.host}:{a.port} '
-        'di browser. Tekan Ctrl+C untuk berhenti.'
-    )
 
     app.run(
         host=a.host,

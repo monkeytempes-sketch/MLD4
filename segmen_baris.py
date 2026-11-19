@@ -4,8 +4,8 @@ from PIL import Image, ImageOps, ImageFilter
 
 AUTHOR = "D230212"
 NIM = "535230212"
-SRC = os.path.join("ML", "MLD", AUTHOR, f"{NIM}_Original")
-DST = os.path.join("ML", "MLD", AUTHOR)
+SRC = os.path.join("ML", "MLD", AUTHOR, f"{NIM}_Original")   # folder scan asli
+DST = os.path.join("ML", "MLD", AUTHOR)                      # potongan disimpan di folder penulis
 
 
 def segment_lines(path, min_h=25, pad=12, ink_thr=0.012, merge_gap=18):

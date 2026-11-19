@@ -1,3 +1,4 @@
+
 const $ = (id) => document.getElementById(id);
 
 const el = {
@@ -20,10 +21,6 @@ let previewUrl = null;
 let stream = null;
 
 const MAX_UPLOAD_SIZE = 3.8 * 1024 * 1024;
-const JPEG_QUALITY = 0.88;
-const MAX_COMPRESS_ATTEMPTS = 5;
-
-class UserError extends Error {}
 
 const setMessage = (t) => {
   el.msg.textContent = t;
@@ -56,71 +53,68 @@ async function compressForVercel(file) {
 
   try {
     bitmap = await createImageBitmap(file);
-  } catch (_) {
-    throw new UserError(
-      'Gambar tidak dapat dibaca. Gunakan JPG atau PNG.'
-    );
-  }
 
-  try {
     let scale = Math.min(
       1,
       3000 / Math.max(bitmap.width, bitmap.height)
     );
 
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
 
-    for (let attempt = 0; attempt < MAX_COMPRESS_ATTEMPTS; attempt++) {
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    for (let attempt = 0; attempt < 8; attempt++) {
+      canvas.width = Math.max(
+        1,
+        Math.round(bitmap.width * scale)
+      );
+
+      canvas.height = Math.max(
+        1,
+        Math.round(bitmap.height * scale)
+      );
+
+      const ctx = canvas.getContext('2d');
 
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 
-      const compressed = await new Promise((resolve) => {
-        canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY);
-      });
-
-      if (!compressed) {
-        break;
-      }
-
-      if (compressed.size <= MAX_UPLOAD_SIZE) {
-        return new File([compressed], 'gambar.jpg', {
-          type: 'image/jpeg',
-          lastModified: Date.now(),
-        });
-      }
-
-      scale *= Math.max(
-        0.5,
-        Math.sqrt(MAX_UPLOAD_SIZE / compressed.size) * 0.95
+      ctx.drawImage(
+        bitmap,
+        0,
+        0,
+        canvas.width,
+        canvas.height
       );
+
+      for (const quality of [0.92, 0.86, 0.80, 0.74, 0.68]) {
+        const compressed = await new Promise((resolve) => {
+          canvas.toBlob(resolve, 'image/jpeg', quality);
+        });
+
+        if (
+          compressed &&
+          compressed.size <= MAX_UPLOAD_SIZE
+        ) {
+          return new File(
+            [compressed],
+            'gambar.jpg',
+            {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            }
+          );
+        }
+      }
+
+      scale *= 0.85;
     }
 
-    throw new UserError(
+    throw new Error(
       'Ukuran gambar masih terlalu besar setelah kompresi.'
     );
   } finally {
-    bitmap.close();
-  }
-}
-
-function cameraErrorMessage(e) {
-  switch (e && e.name) {
-    case 'NotAllowedError':
-    case 'SecurityError':
-      return 'Izin kamera ditolak. Aktifkan izin kamera di pengaturan browser.';
-    case 'NotFoundError':
-    case 'OverconstrainedError':
-      return 'Kamera tidak ditemukan pada perangkat ini. Gunakan Pilih berkas.';
-    case 'NotReadableError':
-    case 'AbortError':
-      return 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi itu lalu coba lagi.';
-    default:
-      return 'Kamera tidak dapat dibuka. Gunakan Pilih berkas.';
+    if (bitmap) {
+      bitmap.close();
+    }
   }
 }
 
@@ -134,7 +128,6 @@ function stopCamera() {
   el.video.hidden = true;
   el.camclose.hidden = true;
   el.cam.textContent = 'Buka kamera';
-  el.go.disabled = !blob;
 }
 
 function setImage(b) {
@@ -203,8 +196,11 @@ async function onCamera() {
     });
   } catch (e) {
     stream = null;
-    console.error(e);
-    showError(cameraErrorMessage(e));
+
+    showError(
+      'Kamera tidak dapat dibuka. Periksa izin kamera di browser.'
+    );
+
     return;
   }
 
@@ -214,7 +210,6 @@ async function onCamera() {
   el.empty.hidden = true;
   el.camclose.hidden = false;
   el.cam.textContent = 'Ambil foto';
-  el.go.disabled = true;
 
   clearError();
 
@@ -298,50 +293,34 @@ function renderModel(prefix, data, glcmMs) {
     `prediksi ${data.waktu_ms.toFixed(0)} ms`;
 
   const best = data.top[0];
-
   const img = $(prefix + '-ex');
 
   img.src = best.contoh;
+  img.alt = 'Contoh tulisan penulis ' + best.kode;
 
   $(prefix + '-cap').textContent =
     'Contoh tulisan penulis ' + best.kode;
-
-  return img;
 }
 
-async function render(data) {
+function render(data) {
   $('summary').textContent = data.ringkasan;
 
   const warn = $('warn');
   warn.replaceChildren();
 
-  (data.peringatan || []).forEach((w) => {
+  data.peringatan.forEach((w) => {
     const li = document.createElement('li');
     li.textContent = w;
     warn.append(li);
   });
 
-  const examples = [
-    renderModel('svm', data.svm, data.waktu_glcm_ms),
-    renderModel('rf', data.rf, data.waktu_glcm_ms),
-  ];
-
-  setMessage('Memuat contoh tulisan...');
-
-  await Promise.all(examples.map((img) => img.decode().catch(() => {})));
+  renderModel('svm', data.svm, data.waktu_glcm_ms);
+  renderModel('rf', data.rf, data.waktu_glcm_ms);
 
   el.results.hidden = false;
 
-  const heading = $('h-res');
-  heading.tabIndex = -1;
-  heading.focus({ preventScroll: true });
-
-  const reduceMotion = window.matchMedia(
-    '(prefers-reduced-motion: reduce)'
-  ).matches;
-
   el.results.scrollIntoView({
-    behavior: reduceMotion ? 'auto' : 'smooth',
+    behavior: 'smooth',
     block: 'start',
   });
 }
@@ -360,25 +339,28 @@ async function identify() {
   try {
     const compressed = await compressForVercel(blob);
 
+    console.log(
+      'Ukuran gambar:',
+      (blob.size / 1024 / 1024).toFixed(2),
+      'MB'
+    );
+
+    console.log(
+      'Ukuran setelah kompresi:',
+      (compressed.size / 1024 / 1024).toFixed(2),
+      'MB'
+    );
+
     const fd = new FormData();
 
-    fd.append('gambar', compressed, compressed.name || 'gambar.jpg');
+    fd.append('gambar', compressed, 'gambar.jpg');
 
     setMessage('Mengirim dan memproses gambar...');
 
-    let r;
-
-    try {
-      r = await fetch('/api/identifikasi', {
-        method: 'POST',
-        body: fd,
-      });
-    } catch (e) {
-      console.error(e);
-      throw new UserError(
-        'Tidak dapat menghubungi server. Pastikan aplikasi masih berjalan.'
-      );
-    }
+    const r = await fetch('/api/identifikasi', {
+      method: 'POST',
+      body: fd,
+    });
 
     let data = null;
 
@@ -396,21 +378,20 @@ async function identify() {
 
       setMessage('Identifikasi gagal.');
     } else {
-      await render(data);
+      render(data);
       setMessage('Selesai.');
     }
   } catch (e) {
     console.error('Identifikasi gagal:', e);
 
     showError(
-      e instanceof UserError
-        ? e.message
-        : 'Terjadi kesalahan tak terduga. Coba lagi.'
+      e.message ||
+      'Tidak dapat menghubungi server. Pastikan aplikasi masih berjalan.'
     );
 
     setMessage('Identifikasi gagal.');
   } finally {
-    el.go.disabled = !blob || stream !== null;
+    el.go.disabled = false;
     el.go.textContent = 'Identifikasi';
   }
 }

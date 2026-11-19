@@ -1,3 +1,7 @@
+Flask
+Pillow
+psycopg[binary]
+scikit-image
 scikit-learn==1.9.1
 numpy==2.5.5
 joblib==1.6.0

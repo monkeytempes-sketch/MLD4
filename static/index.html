@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Identifikasi Penulis Tulisan Tangan</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Identifikasi Penulis Tulisan Tangan</h1>
+    <p class="sub">Perbandingan SVM dan Random Forest dengan fitur tekstur GLCM</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section aria-labelledby="h-input" class="panel">
+    <h2 id="h-input">1. Gambar tulisan</h2>
+    <p class="hint">Gunakan foto atau scan <strong>satu baris</strong> tulisan tangan yang tajam dan terang. Potong gambar sampai hanya baris itu yang tersisa.</p>
+
+    <div class="stage" id="stage">
+      <img id="preview" alt="Pratinjau gambar yang akan diidentifikasi" hidden>
+      <video id="video" autoplay playsinline muted hidden aria-label="Pratinjau kamera"></video>
+      <p id="empty" class="empty">Belum ada gambar. Seret berkas ke sini atau pilih berkas.</p>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="pick" class="btn">Pilih berkas</button>
+      <button type="button" id="cam" class="btn">Buka kamera</button>
+      <button type="button" id="camclose" class="btn" hidden>Tutup kamera</button>
+      <button type="button" id="go" class="btn primary" disabled>Identifikasi</button>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <p id="msg" class="msg" role="status" aria-live="polite">Pilih gambar untuk memulai.</p>
+    <p id="err" class="err" role="alert" hidden></p>
+  </section>
+
+  <section id="results" aria-labelledby="h-res" class="panel" hidden>
+    <h2 id="h-res">2. Hasil identifikasi</h2>
+    <p id="summary" class="summary" aria-live="polite"></p>
+    <ul id="warn" class="warn"></ul>
+    <div class="cols">
+      <article class="model" aria-labelledby="h-svm">
+        <h3 id="h-svm">SVM (kernel RBF)</h3>
+        <ol class="top3" id="svm-list"></ol>
+        <p class="time" id="svm-time"></p>
+        <figure><img id="svm-ex" alt=""><figcaption id="svm-cap"></figcaption></figure>
+      </article>
+      <article class="model" aria-labelledby="h-rf">
+        <h3 id="h-rf">Random Forest</h3>
+        <ol class="top3" id="rf-list"></ol>
+        <p class="time" id="rf-time"></p>
+        <figure><img id="rf-ex" alt=""><figcaption id="rf-cap"></figcaption></figure>
+      </article>
+    </div>
+    <p class="note">Angka SVM adalah persentase duel antar penulis yang dimenangkan. Angka Random Forest adalah persentase suara pohon. Keduanya bukan peluang. Model hanya mengenal penulis yang ada di dataset, jadi tulisan orang lain tetap ditebak sebagai salah satunya.</p>
+  </section>
+</main>
+
+<footer class="wrap foot"><p id="info">Memuat informasi model.</p></footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

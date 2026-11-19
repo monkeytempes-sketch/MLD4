@@ -11,6 +11,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from glcm_utils import glcm_features, prepare
+from db import simpan_riwayat, ambil_riwayat
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE, 'model')
@@ -69,6 +70,11 @@ def api_info():
     return jsonify(info)
 
 
+@app.get('/api/riwayat')
+def api_riwayat():
+    return jsonify(ambil_riwayat())
+
+
 @app.post('/api/identifikasi')
 def identifikasi():
     upload = request.files.get('gambar')
@@ -101,6 +107,14 @@ def identifikasi():
     lo, hi = np.percentile(gray, [1, 99])
     if hi - lo < 30:
         peringatan.append('Goresan tulisan tidak terlihat jelas karena gambar hampir seragam. Hasil di bawah tidak bermakna.')
+
+    # Simpan ke database (di thread terpisah; dilewati bila DATABASE_URL tidak diisi)
+    simpan_riwayat(
+        upload.filename,
+        best_svm, svm_top[0]['nilai'],
+        best_rf, rf_top[0]['nilai'],
+        t_glcm, t_svm, t_rf,
+    )
 
     return jsonify({'ok': True, 'ringkasan': ringkasan, 'peringatan': peringatan, 'waktu_glcm_ms': t_glcm,
                     'svm': {'top': svm_top, 'waktu_ms': t_svm}, 'rf': {'top': rf_top, 'waktu_ms': t_rf}})

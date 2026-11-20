@@ -70,26 +70,8 @@ def ranked(scores):
 
 def predict_svm(x):
     t0 = time.perf_counter()
-
-    d = svm.decision_function(x)[0]
-
-    share = (
-        np.clip(np.round(d), 0, None) /
-        (len(classes) - 1)
-    )
-
-    order = np.argsort(d)[::-1][:3]
-
-    top = [
-        {
-            'kode': str(classes[i]),
-            'nilai': float(share[i]),
-            'contoh': f'/contoh/{classes[i]}.png'
-        }
-        for i in order
-    ]
-
-    return top, (time.perf_counter() - t0) * 1000
+    p = svm.predict_proba(x)[0]
+    return ranked(p), (time.perf_counter() - t0) * 1000
 
 
 def predict_rf(x):

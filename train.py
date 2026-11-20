@@ -117,7 +117,7 @@ def main(data, runs, out):
     acc = {name: show(name, r) for name, r in rows.items()}
 
     # Model untuk aplikasi dilatih di seluruh data.
-    svm = make_pipeline(StandardScaler(), SVC(kernel='rbf', C=10)).fit(X, y)
+    svm = make_pipeline(StandardScaler(), SVC(kernel='rbf', C=10, probability=True)).fit(X, y)
     rf = RandomForestClassifier(n_estimators=200, random_state=0, n_jobs=-1).fit(X, y)
     classes = [str(c) for c in le.classes_]
 
